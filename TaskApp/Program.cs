@@ -6,6 +6,7 @@ using TaskApp.Domain.Interfaces;
 using TaskApp.Domain.Services;
 using TaskApp.Infrastructure.Auth;
 using TaskApp.Infrastructure.Config;
+using TaskApp.Infrastructure.Middlewares;
 using TaskApp.Infrastructure.Persistence.PostgreSQL;
 using TaskApp.Infrastructure.Repositories;
 using TaskApp.Interfaces.Auth;
@@ -61,6 +62,8 @@ if (app.Environment.IsDevelopment())
 }
 
 app.UseHttpsRedirection();
+
+app.UseMiddleware<TokenValidationMiddleware>();
 
 app.UseAuthentication();
 app.UseAuthorization();

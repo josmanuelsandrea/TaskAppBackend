@@ -17,7 +17,7 @@ namespace TaskApp.Domain.Services
         private readonly IUserRepository _userRepository;
         private readonly IMapper _mapper;
         private readonly IJwtService _jwtService;
-        public AuthenticationService(IUserRepository userRepository, IMapper mapper, IJwtService jwtService)
+        public AuthenticationService(IUserRepository userRepository, IMapper mapper, IJwtService jwtService, ILogger<AuthenticationService> logger)
         {
             _userRepository = userRepository;
             _mapper = mapper;
@@ -60,26 +60,32 @@ namespace TaskApp.Domain.Services
 
         public async Task<OperationResult<User?>> Me(string token)
         {
-            var principal = _jwtService.GetPrincipalFromExpiredToken(token);
-            if (principal == null)
+            try
             {
-                return OperationResult<User?>.FailureResult(ResponseMessages.NOT_VALID_TOKEN);
-            }
-
-            var userIdClaim = principal.FindFirst(ClaimTypes.NameIdentifier);
-            if (userIdClaim != null)
-            {
-                var userId = long.Parse(userIdClaim.Value);
-                var user = await _userRepository.GetUserById(userId);
-
-                if (user == null)
+                var principal = _jwtService.GetPrincipalFromExpiredToken(token);
+                if (principal == null)
                 {
-                    return OperationResult<User?>.FailureResult(ResponseMessages.USER_NOT_FOUND);
+                    return OperationResult<User?>.FailureResult(ResponseMessages.NOT_VALID_TOKEN);
                 }
 
-                return OperationResult<User?>.SuccessResult(user, ResponseMessages.USER_FOUND);
-            }
-            else
+                var userIdClaim = principal.FindFirst(ClaimTypes.NameIdentifier);
+                if (userIdClaim != null)
+                {
+                    var userId = long.Parse(userIdClaim.Value);
+                    var user = await _userRepository.GetUserById(userId);
+
+                    if (user == null)
+                    {
+                        return OperationResult<User?>.FailureResult(ResponseMessages.USER_NOT_FOUND);
+                    }
+
+                    return OperationResult<User?>.SuccessResult(user, ResponseMessages.USER_FOUND);
+                }
+                else
+                {
+                    return OperationResult<User?>.FailureResult(ResponseMessages.NOT_VALID_TOKEN);
+                }
+            } catch (Exception ex)
             {
                 return OperationResult<User?>.FailureResult(ResponseMessages.NOT_VALID_TOKEN);
             }

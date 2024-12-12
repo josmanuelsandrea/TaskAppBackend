@@ -19,14 +19,12 @@ namespace TaskApp.Infrastructure.Controllers
     public class TaskController : ControllerBase, ITaskController
     {
         private readonly IAuthenticationService _authenticationService;
-        private readonly ITaskRepository _taskRepository;
         private readonly IMapper _mapper;
         private readonly ITaskService _taskService;
 
-        public TaskController(IAuthenticationService authenticationService, ITaskRepository taskRepository, IMapper mapper, ITaskService taskService)
+        public TaskController(IAuthenticationService authenticationService, IMapper mapper, ITaskService taskService)
         {
             _authenticationService = authenticationService;
-            _taskRepository = taskRepository;
             _mapper = mapper;
             _taskService = taskService;
         }
@@ -35,18 +33,13 @@ namespace TaskApp.Infrastructure.Controllers
         [HttpGet]
         public async Task<ActionResult<ApiResponse<IEnumerable<TaskDTO>>>> GetTasksByUser()
         {
-            var token = TokenHelper.GetBearerToken(Request);
-            if (token == null)
+            var user = HttpContext.Items["User"] as User;
+            if (user == null)
             {
-                return Unauthorized();
-            }
-            var result = await _authenticationService.Me(token);
-            if (!result.Success || result.Data == null)
-            {
-                return BadRequest(new ApiResponse<TaskDTO>(false, result.Message, null!));
+                return Unauthorized(new ApiResponse<TaskDTO>(false, ResponseMessages.UNAUTHORIZED, null!));
             }
 
-            var userTasks = await _taskRepository.GetAllByUserId(result.Data.Id);
+            var userTasks = await _taskService.GetTasksByUserID(user.Id);
             var mapping = _mapper.Map<IEnumerable<TaskDTO>>(userTasks);
 
             return Ok(new ApiResponse<IEnumerable<TaskDTO>>(true, ResponseMessages.OPERATION_SUCCESS, mapping));
@@ -56,47 +49,34 @@ namespace TaskApp.Infrastructure.Controllers
         [HttpPost]
         public async Task<ActionResult<ApiResponse<IEnumerable<TaskDTO>>>> AddTaskToUser([FromBody] TaskRequest task)
         {
-            var token = TokenHelper.GetBearerToken(Request);
-            if (token == null)
+            var user = HttpContext.Items["User"] as User;
+            if (user == null)
             {
-                return Unauthorized();
-            }
-            var result = await _authenticationService.Me(token);
-            if (!result.Success || result.Data == null)
-            {
-                return BadRequest(new ApiResponse<TaskDTO>(false, result.Message, null!));
+                return Unauthorized(new ApiResponse<TaskDTO>(false, ResponseMessages.UNAUTHORIZED, null!));
             }
 
-            var TaskMapped = _mapper.Map<TaskM>(task);
-            TaskMapped.UserId = result.Data.Id;
-
-            var addTaskOperation = await _taskRepository.Add(TaskMapped);
-            if (!addTaskOperation.Success)
+            var operation = await _taskService.AddNewTask(user.Id, task);
+            if (!operation.Success)
             {
-                return BadRequest(new ApiResponse<TaskDTO?>(false, addTaskOperation.Message, null));
+                return BadRequest(new ApiResponse<TaskDTO?>(false, operation.Message, null));
             }
-            var dataMap = _mapper.Map<TaskDTO>(addTaskOperation.Data);
+            var dataMap = _mapper.Map<TaskDTO>(operation.Data);
 
-            return Ok(new ApiResponse<TaskDTO?>(true, addTaskOperation.Message, dataMap));
+            return Ok(new ApiResponse<TaskDTO?>(true, operation.Message, dataMap));
         }
 
         [Authorize]
         [HttpPut]
         public async Task<ActionResult<ApiResponse<TaskDTO>>> UpdateTask([FromBody] TaskUpdate task)
         {
-            var token = TokenHelper.GetBearerToken(Request);
-            if (token == null)
+            var user = HttpContext.Items["User"] as User;
+            if (user == null)
             {
-                return Unauthorized();
-            }
-            var result = await _authenticationService.Me(token);
-            if (!result.Success || result.Data == null)
-            {
-                return BadRequest(new ApiResponse<TaskDTO>(false, result.Message, null!));
+                return Unauthorized(new ApiResponse<TaskDTO>(false, ResponseMessages.UNAUTHORIZED, null!));
             }
 
             var mappedTASK = _mapper.Map<TaskM>(task);
-            var resultUpdate = await _taskService.UpdateTask(result.Data, mappedTASK);
+            var resultUpdate = await _taskService.UpdateTask(user, mappedTASK);
 
             if (!resultUpdate.Success)
             {

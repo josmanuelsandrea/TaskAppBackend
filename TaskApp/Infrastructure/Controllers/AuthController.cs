@@ -2,9 +2,9 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using TaskApp.Domain.Interfaces;
+using TaskApp.Infrastructure.Persistence.PostgreSQL.Models;
 using TaskApp.Infrastructure.Tools;
 using TaskApp.Interfaces.Controllers;
-using TaskApp.Interfaces.Repositories;
 using TaskApp.Models.DTOS.Request;
 using TaskApp.Models.DTOS.Response;
 using TaskApp.Models.Responses;
@@ -17,18 +17,17 @@ namespace TaskApp.Infrastructure.Controllers
     {
         private readonly IAuthenticationService _authenticationService;
         private readonly IMapper _mapper;
-        private readonly IUserRepository _userRepository;
+
         public AuthController(
             IAuthenticationService authenticationService,
-            IMapper mapper,
-            IUserRepository userRepository
+            IMapper mapper
         )
         {
             _authenticationService = authenticationService;
-            _userRepository = userRepository;
             _mapper = mapper;
         }
 
+        [AllowAnonymous]
         [HttpPost("login")]
         public async Task<ActionResult<ApiResponse<string?>>> Login([FromBody] UserLoginDTO model)
         {
@@ -45,20 +44,13 @@ namespace TaskApp.Infrastructure.Controllers
         [HttpGet("me")]
         public async Task<ActionResult<ApiResponse<UserDTO?>>> Me()
         {
-            var token = TokenHelper.GetBearerToken(Request);
-
-            if (token == null)
+            var user = HttpContext.Items["User"] as User;
+            if (user == null)
             {
-                return Unauthorized();
+                return Unauthorized(new ApiResponse<TaskDTO>(false, ResponseMessages.UNAUTHORIZED, null!));
             }
 
-            var result = await _authenticationService.Me(token);
-            if (!result.Success || result.Data == null)
-            {
-                return BadRequest(new ApiResponse<UserDTO>(false, result.Message, null!));
-            }
-
-            var userDTO = _mapper.Map<UserDTO>(result.Data);
+            var userDTO = _mapper.Map<UserDTO>(user);
 
             return Ok(new ApiResponse<UserDTO>(true, ResponseMessages.USER_FOUND, userDTO));
         }
@@ -69,6 +61,7 @@ namespace TaskApp.Infrastructure.Controllers
             throw new NotImplementedException();
         }
 
+        [AllowAnonymous]
         [HttpPost("register")]
         public async Task<ActionResult<ApiResponse<UserDTO?>>> Register([FromBody] UserRegisterDTO model)
         {
